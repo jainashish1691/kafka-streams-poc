@@ -2,6 +2,8 @@ package com.examples.kafkastreams.config;
 
 import com.examples.kafkastreams.dto.Payment;
 import com.examples.kafkastreams.dto.Test;
+import com.examples.kafkastreams.dto.TotalValidationCount;
+import com.examples.kafkastreams.dto.ValidationCounts;
 import com.examples.kafkastreams.dto.ValidationResult;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -57,6 +59,12 @@ public class KafkaStreamsConfig {
 
   @Bean
   public KStream<String, String> kStream(StreamsBuilder builder) {
+    KStream<String, String> fileStream = createFileParsingStream(builder);
+    createPaymentValidationStream(builder); // will be part of other instance / application
+    return fileStream;
+  }
+
+  private KStream<String, String> createFileParsingStream(StreamsBuilder builder) {
     KStream<String, String> fileStream = builder.stream("file-input-topic",
         Consumed.with(Serdes.String(), Serdes.String()));
 
@@ -68,9 +76,6 @@ public class KafkaStreamsConfig {
 
     stringPaymentKStream.to("payment-validation-topic",
         Produced.with(Serdes.String(), new JsonSerde<>(Payment.class)));
-
-    createPaymentValidationStream(builder);
-
     return fileStream;
   }
 
@@ -115,6 +120,24 @@ public class KafkaStreamsConfig {
         log.info("all records validated");
       }
     });*/
+
+    KTable<String, ValidationCounts> totalValidationCountsTable = validCountTable.outerJoin(
+        invalidCountTable,
+        (validCount, invalidCount) -> new ValidationCounts(validCount == null ? 0 : validCount,
+            invalidCount == null ? 0 : invalidCount),
+        Materialized.<String, ValidationCounts, KeyValueStore<Bytes, byte[]>>as(
+                "totalValidationCounts").withKeySerde(Serdes.String())
+            .withValueSerde(new JsonSerde<>(ValidationCounts.class)));
+
+    totalValidationCountsTable.toStream().foreach((fileId, counts) -> {
+      long totalPaymentCount = 20;
+      log.info("checkin total count for file id {} | {}", fileId, counts);
+      if (counts.getValidCount() + counts.getInvalidCount() == totalPaymentCount) {
+        TotalValidationCount totalValidationCount = new TotalValidationCount(fileId,
+            counts.getValidCount(), counts.getInvalidCount());
+        log.info("sending event to final topic to update summary {}", totalValidationCount);
+      }
+    });
 
   }
 
