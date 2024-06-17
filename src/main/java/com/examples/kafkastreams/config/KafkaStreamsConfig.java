@@ -1,10 +1,9 @@
 package com.examples.kafkastreams.config;
 
+import com.examples.kafkastreams.dto.FileStatus;
 import com.examples.kafkastreams.dto.Payment;
+import com.examples.kafkastreams.dto.PaymentValidationResult;
 import com.examples.kafkastreams.dto.Test;
-import com.examples.kafkastreams.dto.TotalValidationCount;
-import com.examples.kafkastreams.dto.ValidationCounts;
-import com.examples.kafkastreams.dto.ValidationResult;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +13,7 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.Aggregator;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.KStream;
@@ -79,65 +79,39 @@ public class KafkaStreamsConfig {
     return fileStream;
   }
 
+  private static Aggregator<String, PaymentValidationResult, FileStatus> getAggregator() {
+    return (aggKey, newValue, aggValue) -> {
+      log.info("current file status value {}", aggValue);
+      aggValue.updateWith(newValue);
+      aggValue.setFileId(newValue.getFileId());
+      return aggValue;
+    };
+  }
+
   private void createPaymentValidationStream(StreamsBuilder builder) {
     KStream<String, Payment> paymentValidationStream = builder.stream("payment-validation-topic",
         Consumed.with(Serdes.String(), new JsonSerde<>(Payment.class)));
 
-    KStream<String, ValidationResult> validationResultStream = paymentValidationStream.mapValues(
+    KStream<String, PaymentValidationResult> validationResultStream = paymentValidationStream.mapValues(
         payment -> {
           boolean isValid = validate(payment);
-          ValidationResult result = new ValidationResult();
+          PaymentValidationResult result = new PaymentValidationResult();
           result.setFileId(payment.getFileId());
           result.setPaymentId(payment.getId());
           result.setValid(isValid);
           return result;
         });
 
-    KTable<String, Long> validCountTable = validationResultStream.filter(
-        (fileId, result) -> result.isValid()).groupBy((fileId, result) -> result.getFileId(),
-        Grouped.with(Serdes.String(), new JsonSerde<>(ValidationResult.class))).count(
-        Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("validPaymentCounts")
-            .withKeySerde(Serdes.String()).withValueSerde(Serdes.Long()));
+    validationResultStream.foreach((k, v) -> log.info("Validated {} {} ", k, v));
+    KTable<String, FileStatus> fileStatusKTable = validationResultStream.groupBy(
+            (key, value) -> value.getFileId(),
+            Grouped.with(Serdes.String(), new JsonSerde<>(PaymentValidationResult.class)))
+        .aggregate(() -> new FileStatus(), getAggregator(),
+            Materialized.<String, FileStatus, KeyValueStore<Bytes, byte[]>>as("filestatus")
+                .withKeySerde(Serdes.String()).withValueSerde(new JsonSerde<>(FileStatus.class)));
 
-    // KTable to keep track of invalid counts
-    KTable<String, Long> invalidCountTable = validationResultStream.filter(
-        (fileId, result) -> !result.isValid()).groupBy((fileId, result) -> result.getFileId(),
-        Grouped.with(Serdes.String(), new JsonSerde<>(ValidationResult.class))).count(
-        Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("invalidPaymentCounts")
-            .withKeySerde(Serdes.String()).withValueSerde(Serdes.Long()));
+    fileStatusKTable.toStream().foreach((k, v) -> log.info("v {} ", v));
 
-    invalidCountTable.toStream()
-        .foreach((k, v) -> log.info("invalid count fileId {}, count {}", k, v));
-    validCountTable.toStream().foreach((k, v) -> log.info("valid count fileId {}, count {}", k, v));
-
-
-    /*ValueJoiner<Long, Long, TotalValidationCount> valueJoiner = TotalValidationCount::new;
-
-    validCountTable.toStream().join(invalidCountTable.toStream(), valueJoiner, JoinWindows.of(
-        Duration.ofSeconds(10))).foreach((fileId, totalValidationCount) -> {
-      long totalPaymentCount = 10;
-      if (totalValidationCount.getTotalValid() + totalValidationCount.getTotalInvalid() == totalPaymentCount) {
-        log.info("all records validated");
-      }
-    });*/
-
-    KTable<String, ValidationCounts> totalValidationCountsTable = validCountTable.outerJoin(
-        invalidCountTable,
-        (validCount, invalidCount) -> new ValidationCounts(validCount == null ? 0 : validCount,
-            invalidCount == null ? 0 : invalidCount),
-        Materialized.<String, ValidationCounts, KeyValueStore<Bytes, byte[]>>as(
-                "totalValidationCounts").withKeySerde(Serdes.String())
-            .withValueSerde(new JsonSerde<>(ValidationCounts.class)));
-
-    totalValidationCountsTable.toStream().foreach((fileId, counts) -> {
-      long totalPaymentCount = 20;
-      log.info("checkin total count for file id {} | {}", fileId, counts);
-      if (counts.getValidCount() + counts.getInvalidCount() == totalPaymentCount) {
-        TotalValidationCount totalValidationCount = new TotalValidationCount(fileId,
-            counts.getValidCount(), counts.getInvalidCount());
-        log.info("sending event to final topic to update summary {}", totalValidationCount);
-      }
-    });
 
   }
 

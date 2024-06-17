@@ -5,7 +5,7 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-public class ValidationResult {
+public class PaymentValidationResult {
 
   private String fileId;
   private int paymentId;
