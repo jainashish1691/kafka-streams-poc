@@ -1,0 +1,161 @@
+Reusable Claude Code Workflow for Enterprise Spring Boot Feature
+Development
+
+STEP 0: ONE-TIME SETUP (REUSABLE SKILL)
+
+Create file: enterprise-spring-payment-skill.md
+
+You are working on an enterprise Spring Boot payment platform.
+
+Stack - Java 21 - Spring Boot - Oracle DB - QueryDSL preferred -
+MapStruct for mapping - Kafka/Kafka Streams where applicable - REST
+APIs - Kubernetes/OpenShift
+
+Coding Standards - Follow existing project patterns - Use attached files
+as source of truth - Constructor injection only - No business logic in
+controller - Service layer owns business logic - Repository layer owns
+DB access - Reuse existing code where possible - Prefer minimal,
+production-safe changes - Avoid unnecessary abstractions
+
+API Rules - Follow API contract exactly - Maintain backward
+compatibility - Explicitly call out breaking changes
+
+DB Rules - Consider Oracle performance - Avoid inefficient joins - Avoid
+N+1 problems - Consider indexing for large tables
+
+Workflow Before coding: 1. Analyze feature 2. Explain business
+requirement 3. Identify impacted modules/classes 4. Explain assumptions
+5. Highlight risks/edge cases 6. Provide implementation plan
+
+Never start coding immediately. Always ask for confirmation before
+implementation.
+
+Code Expectations - Enterprise-grade code - Maintainable
+implementation - Add tests - Explain design decisions
+
+STEP 1: CREATE FEATURE CONTEXT FOLDER
+
+feature-payment-search/ â”œâ”€â”€ feature.md â”œâ”€â”€ api-contract.yaml â”œâ”€â”€ sql.sql
+â”œâ”€â”€ sample-request.json â”œâ”€â”€ sample-response.json â”œâ”€â”€ db-schema.txt â””â”€â”€
+screenshots/
+
+STEP 2: FEATURE TEMPLATE (feature.md)
+
+Feature Name
+
+Business Goal
+
+What problem are we solving?
+
+Existing Flow
+
+How system works today.
+
+New Requirement
+
+Describe expected behavior.
+
+API Contract
+
+See attached swagger/openapi.
+
+Database Changes
+
+See attached SQL.
+
+Impacted Components
+
+-   controller
+-   service
+-   repository
+-   kafka
+-   scheduler
+
+Business Rules
+
+-   Rule 1
+-   Rule 2
+-   Rule 3
+
+Edge Cases
+
+-   Null values
+-   Duplicates
+-   Retry behavior
+-   Failure handling
+
+Non Functional Requirements
+
+-   Response time < 2 sec
+-   Support large volume
+-   Backward compatible
+
+Acceptance Criteria
+
+1.  
+2.  
+3.  
+
+STEP 3: FIRST CLAUDE PROMPT (ANALYSIS ONLY)
+
+Use enterprise-spring-payment-skill.
+
+Analyze attached feature files.
+
+Do NOT code.
+
+Explain: 1. Business understanding 2. Existing flow understanding 3.
+Impacted modules/classes 4. API impact 5. DB/SQL impact 6. Risks and
+edge cases 7. Assumptions being made 8. Step-by-step implementation plan
+
+Mention any ambiguity before coding.
+
+STEP 4: ARCHITECTURE REVIEW
+
+Example correction: paymentId is not unique. Settlement status comes
+from downstream table. Repository pattern already exists.
+
+STEP 5: LOW-LEVEL DESIGN PROMPT
+
+Now generate low-level implementation design.
+
+Show: - impacted classes - new DTOs - repository changes - service
+flow - query approach - validation strategy - exception handling -
+sequence of implementation
+
+No coding yet.
+
+STEP 6: IMPLEMENT IN SMALL SLICES
+
+Repository: Implement repository layer using QueryDSL. Follow existing
+project patterns. Do not touch service/controller.
+
+Service: Implement service layer. Include validation and business rules.
+Reuse existing utilities.
+
+Controller: Implement controller layer. Maintain backward compatibility.
+Follow API contract exactly.
+
+Mapper: Implement MapStruct mapper.
+
+Kafka: Implement kafka publishing logic. Ensure idempotency.
+
+STEP 7: TEST GENERATION
+
+Generate comprehensive test cases.
+
+Include: - happy path - validation failure - null handling - duplicate
+records - DB edge cases - API edge cases - performance considerations
+
+STEP 8: PRINCIPAL ENGINEER REVIEW
+
+Review implementation like a principal engineer.
+
+Find: - bugs - performance issues - Oracle SQL concerns - thread safety
+issues - backward compatibility risk - overengineering - missing test
+coverage
+
+RECOMMENDED FLOW
+
+Skill â†’ Feature files â†’ Analyze â†’ Correct â†’ Design â†’ Implement in slices
+â†’ Test â†’ Review
